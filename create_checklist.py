@@ -1,3 +1,36 @@
+"""
+PRINTCHECK - Automated Checklist Generator for STL Files in 3D Printing
+
+This script generates a structured checklist for STL files, creating 3D previews
+for each file and organizing them in an Excel sheet. It helps users ensure all
+necessary files are reviewed and tracked before starting a 3D printing project.
+
+Features:
+- Automatic creation of an Excel checklist based on STL files.
+- 3D previews for each STL file, color-coded based on file naming conventions.
+- Organized output by folder and subfolder structure.
+- Alerts for STL files that fail to generate previews, included in the checklist.
+
+Color-coding conventions:
+- Red: Files containing '[a]' in the name.
+- White: Files containing '[c]' in the name.
+- Black: All other files.
+
+MIT License
+
+-------------------------------------------------------------------------------
+Revision History:
+- v1.0.0 (2024-10-26): Initial release
+    - Added automatic checklist generation with 3D previews.
+    - Implemented color-coding based on file name patterns.
+    - Provided Excel output with structured folder organization.
+
+-------------------------------------------------------------------------------
+Author: Stefan Börzel
+GitHub: https://github.com/interias/PRINTCHECK/
+License: MIT License (see LICENSE file for details)
+"""
+
 import os
 from pathlib import Path
 import trimesh
