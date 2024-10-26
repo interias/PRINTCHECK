@@ -1,7 +1,7 @@
 
 # PRINTCHECK
 
-**PRINTCHECK** is a tool designed to generate structured checklists for STL files used in 3D printing. It automates the process of creating a comprehensive checklist with previews for each STL file, organized by folder and subfolder structure. The goal is to help users ensure all necessary files are ready and reviewed before 3D printing, streamlining the workflow and minimizing errors.
+**PRINTCHECK** is a tool designed to generate structured checklists for STL files used in 3D printing. It automates the process of creating a comprehensive checklist with previews for each STL file, organized by folder and subfolder structure. The goal is to help users ensure all necessary files are ready and reviewed before and after 3D printing, streamlining the workflow and minimizing errors.
 
 ## Features
 
