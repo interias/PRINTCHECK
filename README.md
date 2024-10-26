@@ -20,16 +20,35 @@ The preview images are color-coded based on the file names:
 
 ## Installation
 
-1. **Clone the Repository:**
+### Step 1: Clone the Repository
    ```bash
    git clone https://github.com/yourusername/PRINTCHECK.git
    cd PRINTCHECK
    ```
 
-2. **Install Required Dependencies:**
-   Make sure you have Python installed, then install the required packages:
+### Step 2: Create a Virtual Environment
+   It is recommended to use a virtual environment to manage dependencies and keep the project isolated from other Python installations.
    ```bash
-   pip install trimesh openpyxl
+   # On Windows
+   python -m venv venv
+
+   # On macOS/Linux
+   python3 -m venv venv
+   ```
+
+### Step 3: Activate the Virtual Environment
+   ```bash
+   # On Windows
+   .\venv\Scripts\activate
+
+   # On macOS/Linux
+   source ./venv/bin/activate
+   ```
+
+### Step 4: Install the Required Dependencies
+   Once the virtual environment is activated, install the necessary packages using `requirements.txt`:
+   ```bash
+   pip install -r requirements.txt
    ```
 
 ## Usage
