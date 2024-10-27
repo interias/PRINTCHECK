@@ -1,7 +1,7 @@
 
 # PRINTCHECK
 
-**PRINTCHECK** is a tool designed to generate structured checklists for STL files used in 3D printing. It automates the process of creating a comprehensive checklist with previews for each STL file, organized by folder and subfolder structure. The goal is to help users ensure all necessary files are ready and reviewed before and after 3D printing, streamlining the workflow and minimizing errors.
+**PRINTCHECK** is a tool designed to generate structured checklists for STL files used in 3D printing. It automates the process of creating a comprehensive checklist with previews for each STL file, organized by folder and subfolder structure. The goal is to help users ensure all necessary files are ready and reviewed before 3D printing, streamlining the workflow and minimizing errors.
 
 ## Features
 
@@ -53,27 +53,24 @@ The preview images are color-coded based on the file names:
 
 ## Usage
 
-1. **Prepare Your Directory Structure:**
-   - Place all STL files in a main directory (`Stls`) with any subfolders as needed.
-   - The script will process all files in the specified main directory and its subfolders.
-
-2. **Run the Script:**
+### Running the Script
+1. **Provide the STL Directory Path**: The script can accept the STL folder path as a command-line argument, or it will prompt the user to enter the path manually if no argument is provided.
    ```bash
-   python printcheck.py
+   python create_checklist.py <path_to_stl_folder>
    ```
-   - The script will search for STL files in the `Stls` folder and create previews for each file.
-   - It will then generate an Excel checklist (`STL_Checklist_Structured.xlsx`) containing the previews, file names, and status columns.
+   Example:
+   ```bash
+   python create_checklist.py ./Stls
+   ```
 
-3. **Review the Output:**
-   - Open the generated Excel file to see the checklist, organized by folders.
-   - Any STL files that failed to generate previews will be listed at the top, along with their folder paths.
+2. **Output**: The script processes all STL files in the specified directory, generating previews and creating an Excel checklist named `STL_Checklist_Structured.xlsx`. Any STL files that failed to generate previews are listed in the Excel file and logged.
 
-## Configuration
+### Configuration
 
-### Folder Structure
-The script expects the STL files to be located in a folder named `Stls` in the same directory as the script. The output will be saved to an `stl_previews` folder.
+#### Folder Structure
+The script expects the STL files to be located in a user-specified directory. The output will be saved to a temporary folder during processing and will be deleted afterward.
 
-### File Naming Conventions
+#### File Naming Conventions
 - Files containing `[a]` in the name will be rendered in red.
 - Files containing `[c]` in the name will be rendered in white.
 - All other files will be rendered in black.
@@ -90,7 +87,22 @@ Missing previews will be highlighted at the top of the Excel sheet, showing both
 
 ## Error Handling
 
-The script provides verbose output to help diagnose any issues during execution. If a file fails to generate a preview (e.g., due to an invalid STL format), it will be reported in the console, and the file will still appear in the checklist with "Preview Missing" noted.
+The script provides verbose output to help diagnose any issues during execution. If a file fails to generate a preview (e.g., due to an invalid STL format), it will retry up to 10 times. Failed previews will be reported in the log file and noted in the checklist.
+
+## Version History
+
+- **v1.0.0 (2024-10-26)**: Initial release
+    - Added automatic checklist generation with 3D previews.
+    - Implemented color-coding based on file name patterns.
+    - Provided Excel output with structured folder organization.
+
+- **v2.0.0 (2024-10-27)**: Updates and improvements
+    - Added support for entering the STL folder path via command line or manual input.
+    - Improved logging: log messages are collected and written to a timestamped log file.
+    - Created a "logs" directory for storing log files.
+    - Changed to use a temporary directory for storing STL previews, which are deleted after execution.
+    - Added progress bar using tqdm for better user feedback during STL file processing.
+    - Added retries to create_3d_preview to make it more stable, as the backend pyglet can fail occasionally.
 
 ## Contributing
 
