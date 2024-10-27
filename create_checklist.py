@@ -33,6 +33,7 @@ Revision History:
     - Created a "logs" directory for storing log files.
     - Changed to use a temporary directory for storing STL previews, which are deleted after execution.
     - Added progress bar using tqdm for better user feedback during STL file processing.
+    - Adding retries to create_3d_preview() to make it more stable, as the backend pyglet can fail occasionally.
 -------------------------------------------------------------------------------
 """
 
@@ -47,6 +48,7 @@ from openpyxl.drawing.image import Image
 from openpyxl.styles import Font
 from tqdm import tqdm
 from datetime import datetime
+import time
 
 # Create logs directory if it doesn't exist
 logs_dir = Path("logs")
@@ -80,44 +82,87 @@ for root, _, files in os.walk(stls_dir):
 log_messages.append(f"Found {len(stl_files)} STL files in '{stls_dir}'.")
 print(f"Processing {len(stl_files)} STL files...")
 
-# Function to create a 3D preview with object-centered view and auto-scaling
-def create_3d_preview(stl_file_path, save_path, image_size=(200, 200)):
-    try:
-        mesh = trimesh.load_mesh(stl_file_path)
-        scene = mesh.scene()
+def create_3d_preview(stl_file_path, save_path, image_size=(200, 200), max_retries=10):
+    """
+    Generate a 3D preview image for an STL file with auto-scaling and color coding.
+    
+    The function attempts to create a 3D preview image of the given STL file. It applies color coding 
+    based on the file name, calculates the optimal camera settings for the preview, and saves the 
+    rendered image to the specified path. It includes a retry mechanism to handle transient failures 
+    during the rendering process.
+    
+    Args:
+        stl_file_path (Path): The file path to the STL file.
+        save_path (Path): The path where the generated preview image will be saved.
+        image_size (tuple): The resolution of the output image as (width, height). Default is (200, 200).
+        max_retries (int): The maximum number of retry attempts if an error occurs during rendering. 
+                           Default is 10.
+    
+    Returns:
+        bool: True if the preview was successfully created, False if all retries failed.
+    
+    Raises:
+        ZeroDivisionError: If a division by zero occurs during rendering (handled internally).
+        Exception: Any other unexpected errors during rendering are logged but do not raise exceptions.
+    
+    Notes:
+        - The function applies color coding to the mesh based on the presence of '[a]' or '[c]' in the 
+          file name: red for '[a]', white for '[c]', and black for all other files.
+        - The camera parameters are set to provide an optimal view of the model, with auto-scaling 
+          based on the model's dimensions.
+        - If the image rendering fails due to a ZeroDivisionError (likely caused by a window size 
+          calculation issue), the function retries up to 'max_retries' times.
+    """
+    retries = 0
+    while retries < max_retries:
+        try:
+            mesh = trimesh.load_mesh(stl_file_path)
+            scene = mesh.scene()
 
-        # Apply color based on file name condition
-        if '[a]' in stl_file_path.name.lower():
-            mesh.visual.vertex_colors = [180, 0, 0, 255]  # Mild red
-        elif '[c]' in stl_file_path.name.lower():
-            mesh.visual.vertex_colors = [255, 255, 255, 255]  # White
-        else:
-            mesh.visual.vertex_colors = [50, 50, 50, 255]  # Mild black
+            # Apply color based on file name condition
+            if '[a]' in stl_file_path.name.lower():
+                mesh.visual.face_colors = [180, 0, 0, 255]  # Mild red
+            elif '[c]' in stl_file_path.name.lower():
+                mesh.visual.face_colors = [255, 255, 255, 255]  # White
+            else:
+                mesh.visual.face_colors = [50, 50, 50, 255]  # Mild black
 
-        # Calculate optimal camera distance to fit the entire model
-        bounding_box = mesh.bounding_box_oriented.bounds
-        scale = max(bounding_box[1] - bounding_box[0])  # Size of the model's longest axis
-        camera_distance = scale * 2.5  # Adjust zoom level based on model size
+            # Calculate optimal camera distance to fit the entire model
+            bounding_box = mesh.bounding_box_oriented.bounds
+            scale = max(bounding_box[1] - bounding_box[0])  # Size of the model's longest axis
+            camera_distance = scale * 2.5  # Adjust zoom level based on model size
 
-        # Position the camera directly above the center of the model
-        scene.set_camera(
-            angles=[0.7, -0.3, 0.3],  # Front-top angle
-            distance=camera_distance,
-            center=mesh.centroid  # Center the view on the model
-        )
+            # Ensure width and height are non-zero for aspect ratio calculation
+            width, height = image_size
+            if height == 0:
+                height = 1
 
-        # Set ambient lighting for better contrast and depth
-        scene.ambient_light = [0.3, 0.3, 0.3, 1.0]
-        scene.background = [220, 220, 220, 255]  # Light gray background
+            # Set the camera parameters explicitly
+            scene.set_camera(
+                angles=[0.7, -0.3, 0.3],  # Front-top angle
+                distance=camera_distance,
+                center=mesh.centroid,  # Center the view on the model
+            )
 
-        # Save the image with enhanced settings
-        image = scene.save_image(resolution=image_size, visible=True)
-        with open(save_path, 'wb') as f:
-            f.write(image)
-        return True
-    except Exception as e:
-        log_messages.append(f"Error creating preview for {stl_file_path}: {e}")
-        return False
+            # Set ambient lighting and background color for better contrast
+            scene.ambient_light = [0.5, 0.5, 0.5, 1.0]  # Brighter ambient light
+            scene.background = [240, 240, 240, 255]  # Light background
+
+            # Save the image with suppressed preview display
+            image = scene.save_image(resolution=image_size, visible=True)
+            with open(save_path, 'wb') as f:
+                f.write(image)
+            
+            return True
+        except ZeroDivisionError as e:
+            log_messages.append(f"ZeroDivisionError encountered when creating preview for {stl_file_path}: {e}")
+            retries += 1
+        except Exception as e:
+            log_messages.append(f"Error creating preview for {stl_file_path}: {e}")
+            return False
+    # If all retries fail
+    log_messages.append(f"Failed to create preview for {stl_file_path} after {max_retries} retries.")
+    return False
 
 # Initialize Excel workbook
 wb = Workbook()
@@ -188,7 +233,16 @@ for stl_path in tqdm(sorted(stl_files), desc="Processing STL files", unit="file"
         missing_previews.append(missing_info)
 
         # Add a row in the main table even if preview is missing
-        ws.append([stl_path.name, "Preview Missing", "", ""])
+        row = [
+            stl_path.name,
+            "Preview Missing",  # Indicate that the preview is missing
+            "",  # Placeholder for "Checked and Available"
+            "",  # Placeholder for "Not Needed"
+        ]
+        ws.append(row)
+
+        # Set the row height to 20 for rows without images
+        ws.row_dimensions[ws.max_row].height = 20
 
 # Insert missing previews information at the top of the sheet if any previews are missing
 if missing_previews:
