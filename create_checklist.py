@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 PRINTCHECK - Automated Checklist Generator for STL Files in 3D Printing
 
@@ -25,26 +27,49 @@ Revision History:
     - Implemented color-coding based on file name patterns.
     - Provided Excel output with structured folder organization.
 
+- v2.0.0 (2024-10-27): Updates and improvements
+    - Added support for entering the STL folder path via command line or manual input.
+    - Improved logging: log messages are collected and written to a timestamped log file.
+    - Created a "logs" directory for storing log files.
+    - Changed to use a temporary directory for storing STL previews, which are deleted after execution.
+    - Added progress bar using tqdm for better user feedback during STL file processing.
 -------------------------------------------------------------------------------
-Author: Stefan Börzel
-GitHub: https://github.com/interias/PRINTCHECK/
-License: MIT License (see LICENSE file for details)
 """
 
 import os
+import sys
 from pathlib import Path
+import tempfile
+import shutil
 import trimesh
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image
 from openpyxl.styles import Font
+from tqdm import tqdm
+from datetime import datetime
 
-# Set the directory where the script is located
-base_dir = Path(os.path.dirname(__file__))
-stls_dir = base_dir / 'Stls'
-output_dir = base_dir / 'stl_previews'
-output_dir.mkdir(exist_ok=True)  # Create directory for previews if it doesn't exist
+# Create logs directory if it doesn't exist
+logs_dir = Path("logs")
+logs_dir.mkdir(exist_ok=True)
 
-# Gather all STL files in the 'Stls' directory and its subdirectories
+# Check if the user provided the STL directory as a command-line argument
+if len(sys.argv) > 1:
+    stls_dir = Path(sys.argv[1])
+else:
+    # Prompt the user to enter the path if not provided
+    stls_dir = Path(input("Please enter the path to the folder containing the STL files: "))
+
+# Check if the provided path is valid
+if not stls_dir.is_dir():
+    print(f"The specified path '{stls_dir}' is not a valid directory. Exiting.")
+    sys.exit(1)
+
+# Set up a temporary directory for the STL previews
+temp_dir = Path(tempfile.mkdtemp())
+log_messages = []  # List to collect log messages
+log_messages.append(f"Using temporary directory for previews: {temp_dir}")
+
+# Gather all STL files in the specified 'Stls' directory and its subdirectories
 stl_files = []
 for root, _, files in os.walk(stls_dir):
     for file in files:
@@ -52,7 +77,8 @@ for root, _, files in os.walk(stls_dir):
             full_path = Path(root) / file
             stl_files.append(full_path)
 
-print(f"Found {len(stl_files)} STL files in '{stls_dir}'.")
+log_messages.append(f"Found {len(stl_files)} STL files in '{stls_dir}'.")
+print(f"Processing {len(stl_files)} STL files...")
 
 # Function to create a 3D preview with object-centered view and auto-scaling
 def create_3d_preview(stl_file_path, save_path, image_size=(200, 200)):
@@ -63,13 +89,10 @@ def create_3d_preview(stl_file_path, save_path, image_size=(200, 200)):
         # Apply color based on file name condition
         if '[a]' in stl_file_path.name.lower():
             mesh.visual.vertex_colors = [180, 0, 0, 255]  # Mild red
-            print(f"Rendering {stl_file_path.name} in red.")
         elif '[c]' in stl_file_path.name.lower():
             mesh.visual.vertex_colors = [255, 255, 255, 255]  # White
-            print(f"Rendering {stl_file_path.name} in white.")
         else:
             mesh.visual.vertex_colors = [50, 50, 50, 255]  # Mild black
-            print(f"Rendering {stl_file_path.name} in black.")
 
         # Calculate optimal camera distance to fit the entire model
         bounding_box = mesh.bounding_box_oriented.bounds
@@ -91,10 +114,9 @@ def create_3d_preview(stl_file_path, save_path, image_size=(200, 200)):
         image = scene.save_image(resolution=image_size, visible=True)
         with open(save_path, 'wb') as f:
             f.write(image)
-        print(f"Preview successfully created for {stl_file_path.name}")
         return True
     except Exception as e:
-        print(f"Error creating preview for {stl_file_path}: {e}")
+        log_messages.append(f"Error creating preview for {stl_file_path}: {e}")
         return False
 
 # Initialize Excel workbook
@@ -121,8 +143,8 @@ for cell in ws[1]:
 # Track the current folder to add section headers
 current_folder = None
 
-# Process each STL file
-for stl_path in sorted(stl_files):
+# Process each STL file with a progress bar
+for stl_path in tqdm(sorted(stl_files), desc="Processing STL files", unit="file"):
     # Determine the folder structure relative to 'Stls' directory
     folder = stl_path.parent.relative_to(stls_dir)
     
@@ -139,7 +161,7 @@ for stl_path in sorted(stl_files):
         current_folder = folder
 
     # Generate preview image path
-    preview_path = output_dir / f"{stl_path.name}.png"
+    preview_path = temp_dir / f"{stl_path.name}.png"
 
     # Generate and save preview image
     if create_3d_preview(stl_path, preview_path):
@@ -163,7 +185,6 @@ for stl_path in sorted(stl_files):
     else:
         # Log missing preview and add entry to missing list with full path
         missing_info = f"{folder}/{stl_path.name}"
-        print(f"Preview generation failed for {missing_info}")
         missing_previews.append(missing_info)
 
         # Add a row in the main table even if preview is missing
@@ -177,9 +198,25 @@ if missing_previews:
     ws["A1"].font = Font(bold=True, color="FF0000")
     for idx, missing_file in enumerate(missing_previews, start=2):
         ws[f"A{idx}"] = missing_file
-    print("Warning: Some STL previews are missing. Details added to the Excel file.")
+    log_messages.append(f"{len(missing_previews)} STL previews failed to generate.")
 
 # Save the Excel file
-excel_output_path = base_dir / "STL_Checklist_Structured.xlsx"
+excel_output_path = Path.cwd() / "STL_Checklist_Structured.xlsx"
 wb.save(excel_output_path)
-print(f"Checklist successfully saved at: {excel_output_path}")
+log_messages.append(f"Checklist successfully saved at: {excel_output_path}")
+
+# Clean up the temporary directory
+shutil.rmtree(temp_dir)
+log_messages.append(f"Temporary previews deleted from: {temp_dir}")
+
+# Write the log messages to a log file with a timestamp
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+log_file_path = logs_dir / f"PRINTCHECK_log_{timestamp}.txt"
+with open(log_file_path, 'w') as log_file:
+    log_file.write("\n".join(log_messages))
+
+# Display summary to the user
+if missing_previews:
+    print(f"{len(missing_previews)} STL previews could not be created. See {log_file_path} for details.")
+else:
+    print(f"All STL previews were created successfully. See {log_file_path} for details.")
