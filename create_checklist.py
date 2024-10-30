@@ -75,7 +75,7 @@ log_messages.append(f"Using temporary directory for previews: {temp_dir}")
 stl_files = []
 for root, _, files in os.walk(stls_dir):
     for file in files:
-        if file.endswith('.stl'):
+        if file.lower().endswith('.stl'):
             full_path = Path(root) / file
             stl_files.append(full_path)
 
